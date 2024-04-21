@@ -5,8 +5,11 @@ from collections import OrderedDict
 from PIL import Image
 import numpy as np
 from matplotlib import pyplot as plt
+import matplotlib
+matplotlib.use('TkAgg')
 
-from torch.nn.functional import upsample
+# from torch.nn.functional import upsample
+from torch.nn.functional import interpolate
 
 import networks.deeplab_resnet as resnet
 from mypath import Path
@@ -46,7 +49,7 @@ results = []
 
 with torch.no_grad():
     while 1:
-        extreme_points_ori = np.array(plt.ginput(4, timeout=0)).astype(np.int)
+        extreme_points_ori = np.array(plt.ginput(4, timeout=0)).astype(int)
         if extreme_points_ori.shape[0] < 4:
             if len(results) > 0:
                 helpers.save_mask(results, 'demo.png')
@@ -63,7 +66,7 @@ with torch.no_grad():
         #  Generate extreme point heat map normalized to image values
         extreme_points = extreme_points_ori - [np.min(extreme_points_ori[:, 0]), np.min(extreme_points_ori[:, 1])] + [pad,
                                                                                                                       pad]
-        extreme_points = (512 * extreme_points * [1 / crop_image.shape[1], 1 / crop_image.shape[0]]).astype(np.int)
+        extreme_points = (512 * extreme_points * [1 / crop_image.shape[1], 1 / crop_image.shape[0]]).astype(int)
         extreme_heatmap = helpers.make_gt(resize_image, extreme_points, sigma=10)
         extreme_heatmap = helpers.cstm_normalize(extreme_heatmap, 255)
 
@@ -74,7 +77,8 @@ with torch.no_grad():
         # Run a forward pass
         inputs = inputs.to(device)
         outputs = net.forward(inputs)
-        outputs = upsample(outputs, size=(512, 512), mode='bilinear', align_corners=True)
+        # outputs = upsample(outputs, size=(512, 512), mode='bilinear', align_corners=True)
+        outputs = interpolate(outputs, size=(512, 512), mode='bilinear', align_corners=True)
         outputs = outputs.to(torch.device('cpu'))
 
         pred = np.transpose(outputs.data.numpy()[0, ...], (1, 2, 0))
