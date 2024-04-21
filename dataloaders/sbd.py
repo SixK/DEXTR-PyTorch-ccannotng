@@ -13,7 +13,7 @@ import scipy.io
 import torch.utils.data as data
 from PIL import Image
 from six.moves import urllib
-from mypath import Path
+from .mypath import Path
 
 
 class SBDSegmentation(data.Dataset):

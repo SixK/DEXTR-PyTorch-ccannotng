@@ -10,7 +10,7 @@ import torch.utils.data as data
 from PIL import Image
 from six.moves import urllib
 import json
-from mypath import Path
+from .mypath import Path
 
 
 class VOCSegmentation(data.Dataset):
