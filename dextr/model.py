@@ -7,24 +7,11 @@ from collections import OrderedDict
 from PIL import Image
 import numpy as np
 
-from torch.nn.functional import upsample
-
-# import dextr.networks.deeplab_resnet as resnet
-# from dextr.dataloaders import helpers as helpers
+# from torch.nn.functional import upsample
+from torch.nn.functional import interpolate
 
 import networks.deeplab_resnet as resnet
 from dataloaders import helpers as helpers
-
-
-"""
-from os.path import splitext, join
-import numpy as np
-from scipy import misc
-from keras import backend as K
-
-from .resnet import build_network
-from .helpers import *
-"""
 
 gpu_id = 0
 device = torch.device("cuda:"+str(gpu_id) if torch.cuda.is_available() else "cpu")
@@ -37,8 +24,7 @@ class DEXTR(object):
         self.input_shape=input_shape
         net = resnet.resnet101(1, nInputChannels=4, classifier='psp')
         print("Initializing weights from: {}".format(weights_path))
-        # state_dict_checkpoint = torch.load(weights_path,
-        state_dict_checkpoint = torch.load('/models/dextr_pascal-sbd.pth',
+        state_dict_checkpoint = torch.load(weights_path,
                                            map_location=lambda storage, loc: storage)
         # Remove the prefix .module from the model when it is trained using DataParallel
         if 'module.' in list(state_dict_checkpoint.keys())[0]:
@@ -52,47 +38,18 @@ class DEXTR(object):
         net.eval()
         net.to(device)
         self.net=net
-
-    def feed_forward(self, data):
-
-        prediction=None
-        """
-        assert data.shape == (self.input_shape[0], self.input_shape[1], self.num_input_channels)
-        prediction = self.model.predict(np.expand_dims(data, 0))[0]
-        """
-
-        return prediction
     
     def predict_mask(self, image, points, pad=50, threshold=0.8, zero_pad=True):
         points = np.array(points).astype(int)
         image = np.array(image)
-        '''
-        points = np.array(points).astype(np.int)
-        image = np.array(image)
-        bbox = get_bbox(image, points=points, pad=pad, zero_pad=zero_pad)
-        crop_image = crop_from_bbox(image, bbox, zero_pad=zero_pad)
-        resize_image = fixed_resize(crop_image, (512, 512)).astype(np.float32)
 
-        # Generate extreme point heat map normalized to image values
-        extreme_points = points - [np.min(points[:, 0]), np.min(points[:, 1])] + [pad , pad]
-        extreme_points = (512 * extreme_points * [1 / crop_image.shape[1], 1 / crop_image.shape[0]]).astype(np.int)
-        extreme_heatmap = make_gt(resize_image, extreme_points, sigma=10)
-        extreme_heatmap = cstm_normalize(extreme_heatmap, 255)
-        
-        # Concatenate inputs and convert to tensor
-        input_dextr = np.concatenate((resize_image, extreme_heatmap[:, :, np.newaxis]), axis=2)
-
-        pred = self.model.predict(input_dextr[np.newaxis, ...])[0, :, :, 0]
-        result = crop2fullmask(pred, bbox, im_size=image.shape[:2], zero_pad=zero_pad, relax=pad) > threshold
-        '''
         #  Crop image to the bounding box from the extreme points and resize
         bbox = helpers.get_bbox(image, points=points, pad=pad, zero_pad=True)
         crop_image = helpers.crop_from_bbox(image, bbox, zero_pad=True)
         resize_image = helpers.fixed_resize(crop_image, (512, 512)).astype(np.float32)
 
         #  Generate extreme point heat map normalized to image values
-        extreme_points = points - [np.min(points[:, 0]), np.min(points[:, 1])] + [pad,
-                                                                                                                      pad]
+        extreme_points = points - [np.min(points[:, 0]), np.min(points[:, 1])] + [pad, pad]
         extreme_points = (512 * extreme_points * [1 / crop_image.shape[1], 1 / crop_image.shape[0]]).astype(int)
         extreme_heatmap = helpers.make_gt(resize_image, extreme_points, sigma=10)
         extreme_heatmap = helpers.cstm_normalize(extreme_heatmap, 255)
@@ -104,7 +61,8 @@ class DEXTR(object):
         # Run a forward pass
         inputs = inputs.to(device)
         outputs = self.net.forward(inputs)
-        outputs = upsample(outputs, size=(512, 512), mode='bilinear', align_corners=True)
+        # outputs = upsample(outputs, size=(512, 512), mode='bilinear', align_corners=True)
+        outputs = interpolate(outputs, size=(512, 512), mode='bilinear', align_corners=True)
         outputs = outputs.to(torch.device('cpu'))
 
         pred = np.transpose(outputs.data.numpy()[0, ...], (1, 2, 0))
@@ -113,13 +71,3 @@ class DEXTR(object):
         result = helpers.crop2fullmask(pred, bbox, im_size=image.shape[:2], zero_pad=True, relax=pad) > threshold
 
         return result
-
-    def predict(self, img):
-        # Preprocess
-        '''
-        img = misc.imresize(img, self.input_shape)
-        img = img.astype('float32')
-        probs = self.feed_forward(img)
-        '''
-        probs=None
-        return probs
